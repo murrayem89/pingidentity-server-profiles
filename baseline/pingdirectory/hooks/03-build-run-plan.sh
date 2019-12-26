@@ -268,37 +268,7 @@ echo "##########################################################################
 ###################################################################################
 " >> "${STATE_PROPERTIES}"
 
-echo "
-###
-# PingDirectory orchestration, run plan and current state
-###
-ORCHESTRATION_TYPE=${ORCHESTRATION_TYPE}
-RUN_PLAN=${RUN_PLAN}
-PD_STATE=${PD_STATE}
 
-###
-# POD Server Info
-###
-_podInstanceName=${_podInstanceName}
-_podHostname=${_podHostname}
-_podLdapsPort=${_podLdapsPort}
-_podReplicationPort=${_podReplicationPort}
-
-###
-# SEED Server Info
-###
-_seedInstanceName=${_seedInstanceName}
-_seedHostname=${_seedHostname}
-_seedLdapsPort=${_seedLdapsPort}
-_seedReplicationPort=${_seedReplicationPort}
-" >> "${STATE_PROPERTIES}"
-
-echo "
-LDAPS_PORT=${LDAPS_PORT}
-REPLICATION_PORT=${REPLICATION_PORT}
-" >> "${STAGING_DIR}/env_vars"
-
-cat "${STATE_PROPERTIES}"
 
 #
 # print out a table of all the pods and clusters
@@ -341,14 +311,14 @@ _clusterWidth=$((totalWidth-14))
 
 # The following are some variables used for printf format statements
 _dashes="--------------------------------------------------------------------------------"
-_seperatorRow=$(printf "+------+------+-%.${_podWidth}s-+-%.${_portWidth}s-+-%.${_portWidth}s-+\n" \
+_seperatorRow=$(printf "# +------+------+-%.${_podWidth}s-+-%.${_portWidth}s-+-%.${_portWidth}s-+\n" \
       "${_dashes}" "${_dashes}" "${_dashes}")
-_clusterFormat="| %-4s   %-4s | CLUSTER: %-${_clusterWidth}s |\n"
-_podFormat="| %-4s | %-4s | %-${_podWidth}s | %-${_portWidth}s | %-${_portWidth}s |\n"
+_clusterFormat="# | %-4s   %-4s | CLUSTER: %-${_clusterWidth}s |\n"
+_podFormat="# | %-4s | %-4s | %-${_podWidth}s | %-${_portWidth}s | %-${_portWidth}s |\n"
 
 # print out the top header for the table
-echo "${_seperatorRow}"
-printf "${_podFormat}" "SEED" "POD" "Instance/Hostname" "LDAPS" "REPL"
+echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
+printf "${_podFormat}" "SEED" "POD" "Instance/Hostname" "LDAPS" "REPL" >> "${STATE_PROPERTIES}"
 
 # Print each row
 for _cluster in ${K8S_CLUSTERS}; do
@@ -380,16 +350,48 @@ for _cluster in ${K8S_CLUSTERS}; do
         # As we print the rows, if we are a new cluster, then we'll print a new cluster
         # header row
         if test "${_prevCluster}" != "${_cluster}"; then
-            echo "${_seperatorRow}"
-            printf "${_clusterFormat}" "${_seedIndicator}" "" "${_cluster}"
-            echo "${_seperatorRow}"
+            echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
+            printf "${_clusterFormat}" "${_seedIndicator}" "" "${_cluster}" >> "${STATE_PROPERTIES}"
+            echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
         fi
         _prevCluster=${_cluster}
         
-        printf "${_podFormat}" "${_seedIndicator}" "${_podIndicator}" "${_pod}" "${_ldapsPort}" "${_replicationPort}"
+        printf "${_podFormat}" "${_seedIndicator}" "${_podIndicator}" "${_pod}" "${_ldapsPort}" "${_replicationPort}" >> "${STATE_PROPERTIES}"
 
         _ordinal=$((_ordinal+1))
     done
 done
 
-echo "${_seperatorRow}"
+echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
+
+cat "${STATE_PROPERTIES}"
+
+echo "
+###
+# PingDirectory orchestration, run plan and current state
+###
+ORCHESTRATION_TYPE=${ORCHESTRATION_TYPE}
+RUN_PLAN=${RUN_PLAN}
+PD_STATE=${PD_STATE}
+
+###
+# POD Server Info
+###
+_podInstanceName=${_podInstanceName}
+_podHostname=${_podHostname}
+_podLdapsPort=${_podLdapsPort}
+_podReplicationPort=${_podReplicationPort}
+
+###
+# SEED Server Info
+###
+_seedInstanceName=${_seedInstanceName}
+_seedHostname=${_seedHostname}
+_seedLdapsPort=${_seedLdapsPort}
+_seedReplicationPort=${_seedReplicationPort}
+" >> "${STATE_PROPERTIES}"
+
+echo "
+LDAPS_PORT=${LDAPS_PORT}
+REPLICATION_PORT=${REPLICATION_PORT}
+" >> "${STAGING_DIR}/env_vars"
