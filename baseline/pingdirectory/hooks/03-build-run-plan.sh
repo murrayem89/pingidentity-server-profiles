@@ -307,7 +307,6 @@ _numReplicas=${K8S_REPLICAS}
 _clusterWidth=0
 _podWidth=0
 _portWidth=5
-_numRows=0
 
 #
 # First, we will calculate a bunch of sizes so we can print in a pretty table
@@ -331,16 +330,10 @@ for _cluster in ${K8S_CLUSTERS}; do
             _replicationPort=$((_replicationPort+i))
         fi
 
-        # Place the value of each cluster, pod, port into a set of arrays
-        eval "_c[\$_numRows]=\${_cluster}"
-        eval "_p[\$_numRows]=\${_pod}"
-        eval "_o[\$_numRows]=\${i}"
-        eval "_lPort[\$_numRows]=\${_ldapsPort}"
-        eval "_rPort[\$_numRows]=\${_replicationPort}"
-        _numRows=$((_numRows+1))
         i=$((i+1))
     done
 done
+
 
 # Get the total width of each row and the width of the cluster header rows
 totalWidth=$((_podWidth+_portWidth+_portWidth+11))
@@ -357,30 +350,46 @@ _podFormat="| %-4s | %-4s | %-${_podWidth}s | %-${_portWidth}s | %-${_portWidth}
 echo "${_seperatorRow}"
 printf "${_podFormat}" "SEED" "POD" "Instance/Hostname" "LDAPS" "REPL"
 
-i=0
-while ([ $i -lt $_numRows ]); do 
-    _seedIndicator=""
-    test "${_c[$i]}" == "${K8S_SEED_CLUSTER}" && \
-    test "${_o[$i]}" == "0" && \
-    _seedIndicator="***"
+# Print each row
+for _cluster in ${K8S_CLUSTERS}; do
+    _ordinal=0
 
-    # If we are printing a row representing the current pod, then we will
-    # provide an indicator of that
-    _podIndicator=""
-    test "${_podInstance}" == "${_p[$i]}" && _podIndicator="***"
 
-    # As we print the rows, if we are a new cluster, then we'll print a new cluster
-    # header row
-    if test "${_prevCluster}" != "${_c[$i]}"; then
-        echo "${_seperatorRow}"
-        printf "${_clusterFormat}" "${_seedIndicator}" "" "${_c[$i]}"
-        echo "${_seperatorRow}"
-    fi
-    _prevCluster=${_c[$i]}
+    while (test $_ordinal -lt ${_numReplicas}) ; do
+        _pod="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${_cluster}"
+        
+        # If we are printing a row representing the seed pod
+        _seedIndicator=""
+        test "${_cluster}" == "${K8S_SEED_CLUSTER}" && \
+        test "${_ordinal}" == "0" && \
+        _seedIndicator="***"
 
-    printf "${_podFormat}" "${_seedIndicator}" "${_podIndicator}" "${_p[$i]}" "${_lPort[$i]}" "${_rPort[$i]}"
+        
+        # If we are printing a row representing the current pod, then we will
+        # provide an indicator of that
+        _podIndicator=""
+        test "${_podInstance}" == "${_pod}" && _podIndicator="***"
 
-    i=$((i+1))
+        _ldapsPort=${LDAPS_PORT}
+        _replicationPort=${REPLICATION_PORT}
+        if test ${K8S_INCREMENT_PORTS} == true; then
+            _ldapsPort=$((_ldapsPort+i))
+            _replicationPort=$((_replicationPort+i))
+        fi
+
+        # As we print the rows, if we are a new cluster, then we'll print a new cluster
+        # header row
+        if test "${_prevCluster}" != "${_cluster}"; then
+            echo "${_seperatorRow}"
+            printf "${_clusterFormat}" "${_seedIndicator}" "" "${_cluster}"
+            echo "${_seperatorRow}"
+        fi
+        _prevCluster=${_cluster}
+        
+        printf "${_podFormat}" "${_seedIndicator}" "${_podIndicator}" "${_pod}" "${_ldapsPort}" "${_replicationPort}"
+
+        _ordinal=$((_ordinal+1))
+    done
 done
 
 echo "${_seperatorRow}"
