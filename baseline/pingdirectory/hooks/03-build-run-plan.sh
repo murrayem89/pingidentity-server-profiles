@@ -95,18 +95,18 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
     else
         _clusterMode="multi"
 
-        if test -z "${K8S_INSTANCE_NAME_PREFIX}"; then
-            echo "K8S_INSTANCE_NAME_PREFIX not set.  Defaulting to K8S_STATEFUL_SET_NAME- (${K8S_STATEFUL_SET_NAME}-)"
-            K8S_INSTANCE_NAME_PREFIX="${K8S_STATEFUL_SET_NAME}-"
+        if test -z "${K8S_POD_INSTANCE_NAME_PREFIX}"; then
+            echo "K8S_POD_INSTANCE_NAME_PREFIX not set.  Defaulting to K8S_STATEFUL_SET_NAME- (${K8S_STATEFUL_SET_NAME}-)"
+            K8S_POD_INSTANCE_NAME_PREFIX="${K8S_STATEFUL_SET_NAME}-"
         fi
 
-        if test -z "${K8S_INSTANCE_NAME_SUFFIX}"; then
-            echo "K8S_INSTANCE_NAME_SUFFIX not set.  Defaulting to K8S_CLUSTER (${K8S_CLUSTER})"
-            K8S_INSTANCE_NAME_SUFFIX="${K8S_CLUSTER}"
+        if test -z "${K8S_POD_INSTANCE_NAME_SUFFIX}"; then
+            echo "K8S_POD_INSTANCE_NAME_SUFFIX not set.  Defaulting to K8S_CLUSTER (${K8S_CLUSTER})"
+            K8S_POD_INSTANCE_NAME_SUFFIX=".${K8S_CLUSTER}"
         fi
 
         if test -z "${K8S_SEED_INSTANCE_NAME_SUFFIX}"; then
-            echo "K8S_SEED_INSTANCE_NAME_SUFFIX not set.  Defaulting to K8S_CLUSTER (${K8S_SEED_CLUSTER})"
+            echo "K8S_SEED_INSTANCE_NAME_SUFFIX not set.  Defaulting to K8S_SEED_CLUSTER (${K8S_SEED_CLUSTER})"
             K8S_SEED_INSTANCE_NAME_SUFFIX=".${K8S_SEED_CLUSTER}"
         fi
 
@@ -124,8 +124,8 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
     #
     # Multi Cluster Details
     if test "${_clusterMode}" == "multi"; then
-        _podHostname="${K8S_INSTANCE_NAME_PREFIX}${_ordinal}${K8S_INSTANCE_NAME_SUFFIX}"
-        _seedHostname="${K8S_INSTANCE_NAME_PREFIX}0${K8S_SEED_INSTANCE_NAME_SUFFIX}"
+        _podHostname="${K8S_POD_INSTANCE_NAME_PREFIX}${_ordinal}${K8S_POD_INSTANCE_NAME_SUFFIX}"
+        _seedHostname="${K8S_POD_INSTANCE_NAME_PREFIX}0${K8S_SEED_INSTANCE_NAME_SUFFIX}"
 
         if test "${K8S_INCREMENT_PORTS}" == "true"; then
             _podLdapsPort=$(( LDAPS_PORT + _ordinal ))
@@ -169,8 +169,9 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 #
 #                   K8S_CLUSTER: ${K8S_CLUSTER}  (${_clusterMode} cluster)
 #              K8S_SEED_CLUSTER: ${K8S_SEED_CLUSTER}
-#      K8S_INSTANCE_NAME_PREFIX: ${K8S_INSTANCE_NAME_PREFIX}
-#      K8S_INSTANCE_NAME_SUFFIX: ${K8S_INSTANCE_NAME_SUFFIX}
+#  K8S_POD_INSTANCE_NAME_PREFIX: ${K8S_POD_INSTANCE_NAME_PREFIX}
+#  K8S_POD_INSTANCE_NAME_SUFFIX: ${K8S_POD_INSTANCE_NAME_SUFFIX}
+# K8S_SEED_INSTANCE_NAME_SUFFIX: ${K8S_SEED_INSTANCE_NAME_SUFFIX}
 #           K8S_INCREMENT_PORTS: ${K8S_INCREMENT_PORTS} (${_incrementPortsMsg})
 #
 #" >> "${_planFile}"
@@ -288,7 +289,7 @@ for _cluster in ${K8S_CLUSTERS}; do
 
     i=0
     while (test $i -lt ${_numReplicas}) ; do
-        _pod="${K8S_STATEFUL_SET_NAME}-${i}.${_cluster}"
+        _pod="${K8S_POD_INSTANCE_NAME_PREFIX}${i}${K8S_POD_INSTANCE_NAME_SUFFIX}"
 
         # get the max size of the pod name
         test ${#_pod} -gt ${_podWidth} && _podWidth=${#_pod}
@@ -343,8 +344,8 @@ for _cluster in ${K8S_CLUSTERS}; do
         _ldapsPort=${LDAPS_PORT}
         _replicationPort=${REPLICATION_PORT}
         if test ${K8S_INCREMENT_PORTS} == true; then
-            _ldapsPort=$((_ldapsPort+i))
-            _replicationPort=$((_replicationPort+i))
+            _ldapsPort=$((_ldapsPort+_ordinal))
+            _replicationPort=$((_replicationPort+_ordinal))
         fi
 
         # As we print the rows, if we are a new cluster, then we'll print a new cluster
