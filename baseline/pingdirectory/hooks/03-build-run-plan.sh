@@ -95,19 +95,19 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
     else
         _clusterMode="multi"
 
-        if test -z "${K8S_POD_INSTANCE_NAME_PREFIX}"; then
-            echo "K8S_POD_INSTANCE_NAME_PREFIX not set.  Defaulting to K8S_STATEFUL_SET_NAME- (\${K8S_STATEFUL_SET_NAME}-)"
-            K8S_POD_INSTANCE_NAME_PREFIX="${K8S_STATEFUL_SET_NAME}-"
+        if test -z "${K8S_POD_HOSTNAME_PREFIX}"; then
+            echo "K8S_POD_HOSTNAME_PREFIX not set.  Defaulting to K8S_STATEFUL_SET_NAME- (\${K8S_STATEFUL_SET_NAME}-)"
+            K8S_POD_HOSTNAME_PREFIX="${K8S_STATEFUL_SET_NAME}-"
         fi
 
-        if test -z "${K8S_POD_INSTANCE_NAME_SUFFIX}"; then
-            echo "K8S_POD_INSTANCE_NAME_SUFFIX not set.  Defaulting to K8S_CLUSTER (.\${K8S_CLUSTER})"
-            K8S_POD_INSTANCE_NAME_SUFFIX=".\${K8S_CLUSTER}"
+        if test -z "${K8S_POD_HOSTNAME_SUFFIX}"; then
+            echo "K8S_POD_HOSTNAME_SUFFIX not set.  Defaulting to K8S_CLUSTER (.\${K8S_CLUSTER})"
+            K8S_POD_HOSTNAME_SUFFIX=".\${K8S_CLUSTER}"
         fi
 
-        if test -z "${K8S_SEED_INSTANCE_NAME_SUFFIX}"; then
-            echo "K8S_SEED_INSTANCE_NAME_SUFFIX not set.  Defaulting to K8S_SEED_CLUSTER (.\${K8S_SEED_CLUSTER})"
-            K8S_SEED_INSTANCE_NAME_SUFFIX=".\${K8S_SEED_CLUSTER}"
+        if test -z "${K8S_SEED_HOSTNAME_SUFFIX}"; then
+            echo "K8S_SEED_HOSTNAME_SUFFIX not set.  Defaulting to K8S_SEED_CLUSTER (.\${K8S_SEED_CLUSTER})"
+            K8S_SEED_HOSTNAME_SUFFIX=".\${K8S_SEED_CLUSTER}"
         fi
 
         if test ${K8S_INCREMENT_PORTS} == true; then
@@ -124,8 +124,8 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
     #
     # Multi Cluster Details
     if test "${_clusterMode}" == "multi"; then
-        _podHostname=$(eval "${K8S_POD_INSTANCE_NAME_PREFIX}${_ordinal}${K8S_POD_INSTANCE_NAME_SUFFIX}")
-        _seedHostname=$(eval "${K8S_POD_INSTANCE_NAME_PREFIX}0${K8S_SEED_INSTANCE_NAME_SUFFIX}")
+        _podHostname=$(eval "echo ${K8S_POD_HOSTNAME_PREFIX}${_ordinal}${K8S_POD_HOSTNAME_SUFFIX}")
+        _seedHostname=$(eval "echo ${K8S_POD_HOSTNAME_PREFIX}0${K8S_POD_HOSTNAME_SUFFIX}")
 
         if test "${K8S_INCREMENT_PORTS}" == "true"; then
             _podLdapsPort=$(( LDAPS_PORT + _ordinal ))
@@ -135,8 +135,8 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
         fi
     fi
 
-    _podInstanceName="${_podHostname}"
-    _seedInstanceName="${_seedHostname}"
+    _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
+    _seedInstanceName="${K8S_STATEFUL_SET_NAME}-0.${K8S_SEED_CLUSTER}"
 
     if test "${_podInstanceName}" == "${_seedInstanceName}" ; then
         echo "We are the SEED server (${_seedInstanceName})"
@@ -169,9 +169,9 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 #
 #                   K8S_CLUSTER: ${K8S_CLUSTER}  (${_clusterMode} cluster)
 #              K8S_SEED_CLUSTER: ${K8S_SEED_CLUSTER}
-#  K8S_POD_INSTANCE_NAME_PREFIX: ${K8S_POD_INSTANCE_NAME_PREFIX}
-#  K8S_POD_INSTANCE_NAME_SUFFIX: ${K8S_POD_INSTANCE_NAME_SUFFIX}
-# K8S_SEED_INSTANCE_NAME_SUFFIX: ${K8S_SEED_INSTANCE_NAME_SUFFIX}
+#       K8S_POD_HOSTNAME_PREFIX: ${K8S_POD_HOSTNAME_PREFIX}
+#       K8S_POD_HOSTNAME_SUFFIX: ${K8S_POD_HOSTNAME_SUFFIX}
+#      K8S_SEED_HOSTNAME_SUFFIX: ${K8S_SEED_HOSTNAME_SUFFIX}
 #           K8S_INCREMENT_PORTS: ${K8S_INCREMENT_PORTS} (${_incrementPortsMsg})
 #
 #" >> "${_planFile}"
@@ -289,7 +289,7 @@ for _cluster in ${K8S_CLUSTERS}; do
 
     i=0
     while (test $i -lt ${_numReplicas}) ; do
-        _pod=$(eval "${K8S_POD_INSTANCE_NAME_PREFIX}${i}${K8S_POD_INSTANCE_NAME_SUFFIX}")
+        _pod="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
 
         # get the max size of the pod name
         test ${#_pod} -gt ${_podWidth} && _podWidth=${#_pod}
@@ -319,14 +319,14 @@ _podFormat="# | %-4s | %-4s | %-${_podWidth}s | %-${_portWidth}s | %-${_portWidt
 
 # print out the top header for the table
 echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
-printf "${_podFormat}" "SEED" "POD" "Instance/Hostname" "LDAPS" "REPL" >> "${STATE_PROPERTIES}"
+printf "${_podFormat}" "SEED" "POD" "Instance" "LDAPS" "REPL" >> "${STATE_PROPERTIES}"
 
 # Print each row
 for _cluster in ${K8S_CLUSTERS}; do
     _ordinal=0
 
     while (test $_ordinal -lt ${_numReplicas}) ; do
-        _pod=$(eval "${K8S_POD_INSTANCE_NAME_PREFIX}${_ordinal}${K8S_POD_INSTANCE_NAME_SUFFIX}")
+        _pod="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
         
         # If we are printing a row representing the seed pod
         _seedIndicator=""
