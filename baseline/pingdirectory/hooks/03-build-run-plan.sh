@@ -98,16 +98,22 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
         if test -z "${K8S_POD_INSTANCE_NAME_PREFIX}"; then
             echo "K8S_POD_INSTANCE_NAME_PREFIX not set.  Defaulting to K8S_STATEFUL_SET_NAME- (${K8S_STATEFUL_SET_NAME}-)"
             K8S_POD_INSTANCE_NAME_PREFIX="${K8S_STATEFUL_SET_NAME}-"
+        else
+            eval "K8S_POD_INSTANCE_NAME_PREFIX=${K8S_POD_INSTANCE_NAME_PREFIX}"
         fi
 
         if test -z "${K8S_POD_INSTANCE_NAME_SUFFIX}"; then
             echo "K8S_POD_INSTANCE_NAME_SUFFIX not set.  Defaulting to K8S_CLUSTER (${K8S_CLUSTER})"
             K8S_POD_INSTANCE_NAME_SUFFIX=".${K8S_CLUSTER}"
+        else
+            eval "K8S_POD_INSTANCE_NAME_SUFFIX=${K8S_POD_INSTANCE_NAME_SUFFIX}"
         fi
 
         if test -z "${K8S_SEED_INSTANCE_NAME_SUFFIX}"; then
             echo "K8S_SEED_INSTANCE_NAME_SUFFIX not set.  Defaulting to K8S_SEED_CLUSTER (${K8S_SEED_CLUSTER})"
             K8S_SEED_INSTANCE_NAME_SUFFIX=".${K8S_SEED_CLUSTER}"
+        else
+            eval "K8S_SEED_INSTANCE_NAME_SUFFIX=${K8S_SEED_INSTANCE_NAME_SUFFIX}"
         fi
 
         if test ${K8S_INCREMENT_PORTS} == true; then
