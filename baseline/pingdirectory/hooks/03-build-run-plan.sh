@@ -303,6 +303,7 @@ cat "${STATE_PROPERTIES}"
 #
 # print out a table of all the pods and clusters
 #
+_numReplicas=${K8S_REPLICAS}
 _clusterWidth=0
 _podWidth=0
 _portWidth=5
