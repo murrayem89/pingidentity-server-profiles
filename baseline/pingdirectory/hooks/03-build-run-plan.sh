@@ -63,8 +63,8 @@ _podName=$(hostname)
 _ordinal=$(echo ${_podName##*-})
 
 
-_podInstanceName="$(hostname)"
-_podHostname="$(_podInstanceName)"
+_podHostname="$(hostname)"
+_podInstanceName="$(_podHostname)"
 _podLdapsPort="${LDAPS_PORT}"
 _podReplicationPort="${REPLICATION_PORT}"
 
@@ -117,7 +117,10 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
         fi
     fi
 
-    _seedHostname="${K8S_STATEFUL_SET_NAME}-0"
+    
+    _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
+    
+    _seedInstanceName="${K8S_STATEFUL_SET_NAME}-0.${K8S_SEED_CLUSTER}"
     _seedLdapsPort="${LDAPS_PORT}"
     _seedReplicationPort="${REPLICATION_PORT}"
 
@@ -134,9 +137,6 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
             REPLICATION_PORT=${_podReplicationPort}
         fi
     fi
-
-    _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
-    _seedInstanceName="${K8S_STATEFUL_SET_NAME}-0.${K8S_SEED_CLUSTER}"
 
     if test "${_podInstanceName}" == "${_seedInstanceName}" ; then
         echo "We are the SEED server (${_seedInstanceName})"
