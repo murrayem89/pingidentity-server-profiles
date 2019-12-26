@@ -2,7 +2,7 @@
 #
 # Ping Identity DevOps - Docker Build Hooks
 #
-#- This scrip is called to check if there is an existing server
+#- This script is called to check if there is an existing server
 #- and if so, it will return a 1, else 0
 #
 
@@ -13,15 +13,35 @@ ${VERBOSE} && set -x
 
 rm -rf "${STATE_PROPERTIES}"
 
+#
+#- Goal of building a run plan is to provide a plan for the server as it starts up
+#- Options for the RUN_PLAN and the PD_STATE are as follows:
+#-
+#- RUN_PLAN (Initially set to UNKNOWN)
+#-          START   - Instructs the container to start from scratch.  This is primarily
+#-                    because a server.uuid file is not present.
+#-          RESTART - Instructs the container to restart an existing directory.  This is
+#-                    primarily because an existing server.uuid file is prsent.
+#- 
+#- PD_STATE (Initially set to UNKNOWN)
+#-          SETUP   - Specifies that the server should be setup
+#-          UPDATE  - Specifies that the server should be updated
+#-          GENISIS - A very special case when the server is determined to be the
+#-                    SEED Server and initial server should be setup and data imported
 RUN_PLAN="UNKNOWN"
 PD_STATE="UNKNOWN"
 SERVER_UUID_FILE="${SERVER_ROOT_DIR}/config/server.uuid"
 ORCHESTRATION_TYPE=$(echo "${ORCHESTRATION_TYPE}" | tr '[:lower:]' '[:upper:]')
 
+# Create a temporary file that will be used to store output as items are determined
 _planFile="/tmp/plan-${ORCHESTRATION_TYPE}.txt"
 rm -rf "${_planFile}"
 
+# If we have a server.uuid file, then the container should RESTART with an UPDATE plan
+# If we don't have a server.uuid file, then we should START with a SETUP plan.  Additionally
+#    if a SERVER_ROOT_DIR is found, then we should cleanup before starting.
 if  test -f "${SERVER_UUID_FILE}" ; then
+    # Sets the serverUUID variable
     . "${SERVER_UUID_FILE}"
 
     RUN_PLAN="RESTART"
@@ -48,13 +68,16 @@ _podHostname="$(_podInstanceName)"
 _podLdapsPort="${LDAPS_PORT}"
 _podReplicationPort="${REPLICATION_PORT}"
 
-echo "###################################################################################
+echo "
+###################################################################################
 #            ORCHESTRATION_TYPE: ${ORCHESTRATION_TYPE}
 #                      HOSTNAME: ${HOSTNAME}
 #                    serverUUID: ${serverUUID}
 #" >> "${_planFile}"
 
-# if running in kubernetes
+# 
+# KUBERNETES
+#
 if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 
     if test -z "${K8S_STATEFUL_SET_NAME}"; then
@@ -67,12 +90,10 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
     # multi cluster mode.
     #
     if test -z "${K8S_CLUSTER}" ||
-    test -z "${K8S_SEED_CLUSTER}"; then
+       test -z "${K8S_SEED_CLUSTER}"; then
         _clusterMode="single"
-        echo "Single Mode"
     else
         _clusterMode="multi"
-        echo "Multi Mode"
 
         if test -z "${K8S_INSTANCE_NAME_PREFIX}"; then
             echo "K8S_INSTANCE_NAME_PREFIX not set.  Defaulting to K8S_STATEFUL_SET_NAME- (${K8S_STATEFUL_SET_NAME}-)"
@@ -142,7 +163,8 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
         fi
     fi
 
-    echo "#         K8S_STATEFUL_SET_NAME: ${K8S_STATEFUL_SET_NAME}
+    echo "#
+#         K8S_STATEFUL_SET_NAME: ${K8S_STATEFUL_SET_NAME}
 # K8S_STATEFUL_SET_SERVICE_NAME: ${K8S_STATEFUL_SET_SERVICE_NAME}
 #
 #                   K8S_CLUSTER: ${K8S_CLUSTER}  (${_clusterMode} cluster)
@@ -154,13 +176,37 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 #" >> "${_planFile}"
 
 
-    case "${PD_STATE}" in
-        GENESIS)
-            echo "#     Startup Plan
+fi
+
+# 
+# COMPOSE ORCHESTRATION_TYPE
+#
+if test "${ORCHESTRATION_TYPE}" = "COMPOSE" ; then
+    # Assume GENESIS state for now, if we aren't kubernetes when setting up
+    if test "${RUN_PLAN}" = "START" ; then
+        PD_STATE="GENESIS"
+        nslookup ${COMPOSE_SERVICE_NAME}_1 2>/dev/null | awk '$0 ~ /^Address / {print $4}' | grep ${HOSTNAME} || PD_STATE="SETUP"
+    fi
+fi
+
+# 
+# Unkown ORCHESTRATION_TYPE
+#
+if test -z "${ORCHESTRATION_TYPE}" && test "${PD_STATE}" = "SETUP"; then
+    PD_STATE="GENESIS"
+fi
+
+#
+# Print out different messages/startup plans based on the PD_STATE
+# If the PD_STATE is not set to a known state, then we have a container failure
+#
+case "${PD_STATE}" in
+    GENESIS)
+        echo "#     Startup Plan
 #        - manage-profile setup
 #        - import data" >> "${_planFile}"
 
-            echo "
+        echo "
 ##################################################################################
 #
 #                                   IMPORTANT MESSAGE
@@ -172,44 +218,30 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 # folloing conditions:
 #
 #   1. We couldn't find a valid server.uuid file
-#   2. Our host name ($(hostname))is the 1st one in the stateful set (${K8S_STATEFUL_SET_SERVICE_NAME}-0)
-#   3. There are no other servers currently running in the stateful set (${K8S_STATEFUL_SET_SERVICE_NAME})
+#   2. KUBERNETES - Our host name ($(hostname))is the 1st one in the stateful set (${K8S_STATEFUL_SET_SERVICE_NAME}-0)
+#   3. KUBERNETES - There are no other servers currently running in the stateful set (${K8S_STATEFUL_SET_SERVICE_NAME})
 #
 # If it is suspected that we shoudn't be in the GENESIS state, take actions to
 # remediate.
 #
 ##################################################################################
 "
-            ;;
-        SETUP)
-            echo "#     Startup Plan
+        ;;
+    SETUP)
+        echo "#     Startup Plan
 #        - manage-profile setup
 #        - repl enable (from SEED Server-${_seedInstanceName})
 #        - repl init   (from topology.json, from SEED Server-${_seedInstanceName})" >> "${_planFile}"
-            ;;
-        UPDATE)
-            echo "#     Startup Plan
+        ;;
+    UPDATE)
+        echo "#     Startup Plan
 #        - manage-profile update
 #        - repl enable (from SEED Server-${_seedInstanceName})
 #        - repl init   (from topology.json, from SEED Server-${_seedInstanceName})" >> "${_planFile}"
-            ;;
-        *)
-            container_failure 08 "Unknown PD_STATE of ($PD_STATE)"
-    esac
-fi
-if test "${ORCHESTRATION_TYPE}" = "COMPOSE" ; then
-    # Assume GENESIS state for now, if we aren't kubernetes when setting up
-    if test "${RUN_PLAN}" = "START" ; then
-        PD_STATE="GENESIS"
-        nslookup ${COMPOSE_SERVICE_NAME}_1 2>/dev/null | awk '$0 ~ /^Address / {print $4}' | grep ${HOSTNAME} || PD_STATE="SETUP"
-    fi
-fi
-
-if test -z "${ORCHESTRATION_TYPE}" && test "${PD_STATE}" = "SETUP"; then
-    PD_STATE="GENESIS"
-fi
-
-test "${RUN_PLAN}" = "RESTART" && PD_STATE="UPDATE"
+        ;;
+    *)
+        container_failure 08 "Unknown PD_STATE of ($PD_STATE)"
+esac
 
 echo "
 ###################################################################################
@@ -267,3 +299,87 @@ REPLICATION_PORT=${REPLICATION_PORT}
 " >> "${STAGING_DIR}/env_vars"
 
 cat "${STATE_PROPERTIES}"
+
+#
+# print out a table of all the pods and clusters
+#
+_clusterWidth=0
+_podWidth=0
+_portWidth=5
+_numRows=0
+
+#
+# First, we will calculate a bunch of sizes so we can print in a pretty table
+# and place all the vlues into a row array to be printed in a loop later on
+#
+for _cluster in ${K8S_CLUSTERS}; do
+    # get the max size of cluster name
+    test ${#_cluster} -gt ${_clusterWidth} && _clusterWidth=${#_cluster}
+
+    i=0
+    while (test $i -lt ${_numReplicas}) ; do
+        _pod="${K8S_STATEFUL_SET_NAME}-${i}.${_cluster}"
+
+        # get the max size of the pod name
+        test ${#_pod} -gt ${_podWidth} && _podWidth=${#_pod}
+
+        _ldapsPort=${LDAPS_PORT}
+        _replicationPort=${REPLICATION_PORT}
+        if test ${K8S_INCREMENT_PORTS} == true; then
+            _ldapsPort=$((_ldapsPort+i))
+            _replicationPort=$((_replicationPort+i))
+        fi
+
+        # Place the value of each cluster, pod, port into a set of arrays
+        eval "_c[\$_numRows]=\${_cluster}"
+        eval "_p[\$_numRows]=\${_pod}"
+        eval "_o[\$_numRows]=\${i}"
+        eval "_lPort[\$_numRows]=\${_ldapsPort}"
+        eval "_rPort[\$_numRows]=\${_replicationPort}"
+        _numRows=$((_numRows+1))
+        i=$((i+1))
+    done
+done
+
+# Get the total width of each row and the width of the cluster header rows
+totalWidth=$((_podWidth+_portWidth+_portWidth+11))
+_clusterWidth=$((totalWidth-14))
+
+# The following are some variables used for printf format statements
+_dashes="--------------------------------------------------------------------------------"
+_seperatorRow=$(printf "+------+------+-%.${_podWidth}s-+-%.${_portWidth}s-+-%.${_portWidth}s-+\n" \
+      "${_dashes}" "${_dashes}" "${_dashes}")
+_clusterFormat="| %-4s   %-4s | CLUSTER: %-${_clusterWidth}s |\n"
+_podFormat="| %-4s | %-4s | %-${_podWidth}s | %-${_portWidth}s | %-${_portWidth}s |\n"
+
+# print out the top header for the table
+echo "${_seperatorRow}"
+printf "${_podFormat}" "SEED" "POD" "Instance/Hostname" "LDAPS" "REPL"
+
+i=0
+while ([ $i -lt $_numRows ]); do 
+    _seedIndicator=""
+    test "${_c[$i]}" == "${K8S_SEED_CLUSTER}" && \
+    test "${_o[$i]}" == "0" && \
+    _seedIndicator="***"
+
+    # If we are printing a row representing the current pod, then we will
+    # provide an indicator of that
+    _podIndicator=""
+    test "${_podInstance}" == "${_p[$i]}" && _podIndicator="***"
+
+    # As we print the rows, if we are a new cluster, then we'll print a new cluster
+    # header row
+    if test "${_prevCluster}" != "${_c[$i]}"; then
+        echo "${_seperatorRow}"
+        printf "${_clusterFormat}" "${_seedIndicator}" "" "${_c[$i]}"
+        echo "${_seperatorRow}"
+    fi
+    _prevCluster=${_c[$i]}
+
+    printf "${_podFormat}" "${_seedIndicator}" "${_podIndicator}" "${_p[$i]}" "${_lPort[$i]}" "${_rPort[$i]}"
+
+    i=$((i+1))
+done
+
+echo "${_seperatorRow}"
