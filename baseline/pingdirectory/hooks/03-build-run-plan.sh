@@ -289,7 +289,7 @@ for _cluster in ${K8S_CLUSTERS}; do
 
     i=0
     while (test $i -lt ${_numReplicas}) ; do
-        _pod="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
+        _pod="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${_cluster}"
 
         # get the max size of the pod name
         test ${#_pod} -gt ${_podWidth} && _podWidth=${#_pod}
