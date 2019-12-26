@@ -119,7 +119,7 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 
     
     _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
-    
+
     _seedInstanceName="${K8S_STATEFUL_SET_NAME}-0.${K8S_SEED_CLUSTER}"
     _seedLdapsPort="${LDAPS_PORT}"
     _seedReplicationPort="${REPLICATION_PORT}"
@@ -127,8 +127,8 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
     #
     # Multi Cluster Details
     if test "${_clusterMode}" == "multi"; then
-        _podHostname=$(eval "echo ${K8S_POD_HOSTNAME_PREFIX}${_ordinal}${K8S_POD_HOSTNAME_SUFFIX}")
-        _seedHostname=$(eval "echo ${K8S_POD_HOSTNAME_PREFIX}0${K8S_POD_HOSTNAME_SUFFIX}")
+        # _podHostname=$(eval "echo ${K8S_POD_HOSTNAME_PREFIX}${_ordinal}${K8S_POD_HOSTNAME_SUFFIX}")
+        # _seedHostname=$(eval "echo ${K8S_POD_HOSTNAME_PREFIX}0${K8S_POD_HOSTNAME_SUFFIX}")
 
         if test "${K8S_INCREMENT_PORTS}" == "true"; then
             _podLdapsPort=$(( LDAPS_PORT + _ordinal ))
