@@ -333,7 +333,7 @@ for _cluster in ${K8S_CLUSTERS}; do
 
 
     while (test $_ordinal -lt ${_numReplicas}) ; do
-        _pod="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${_cluster}"
+        _pod="${K8S_POD_INSTANCE_NAME_PREFIX}${_ordinal}${K8S_POD_INSTANCE_NAME_SUFFIX}"
         
         # If we are printing a row representing the seed pod
         _seedIndicator=""
