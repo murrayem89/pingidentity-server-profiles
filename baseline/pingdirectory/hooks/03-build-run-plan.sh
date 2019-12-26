@@ -102,12 +102,12 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 
         if test -z "${K8S_INSTANCE_NAME_SUFFIX}"; then
             echo "K8S_INSTANCE_NAME_SUFFIX not set.  Defaulting to K8S_CLUSTER (${K8S_CLUSTER})"
-            K8S_INSTANCE_NAME_SUFFIX="${K8S_CLUSTER}-"
+            K8S_INSTANCE_NAME_SUFFIX="${K8S_CLUSTER}"
         fi
 
         if test -z "${K8S_SEED_INSTANCE_NAME_SUFFIX}"; then
             echo "K8S_SEED_INSTANCE_NAME_SUFFIX not set.  Defaulting to K8S_CLUSTER (${K8S_SEED_CLUSTER})"
-            K8S_SEED_INSTANCE_NAME_SUFFIX="${K8S_SEED_CLUSTER}-"
+            K8S_SEED_INSTANCE_NAME_SUFFIX=".${K8S_SEED_CLUSTER}"
         fi
 
         if test ${K8S_INCREMENT_PORTS} == true; then
