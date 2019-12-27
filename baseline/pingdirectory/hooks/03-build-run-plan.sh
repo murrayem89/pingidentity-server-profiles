@@ -64,7 +64,7 @@ _ordinal=$(echo ${_podName##*-})
 
 
 _podHostname="$(hostname)"
-_podInstanceName="$(_podHostname)"
+_podInstanceName="${_podHostname}"
 _podLdapsPort="${LDAPS_PORT}"
 _podReplicationPort="${REPLICATION_PORT}"
 
@@ -188,12 +188,23 @@ if test "${ORCHESTRATION_TYPE}" = "COMPOSE" ; then
         PD_STATE="GENESIS"
         nslookup ${COMPOSE_SERVICE_NAME}_1 2>/dev/null | awk '$0 ~ /^Address / {print $4}' | grep ${HOSTNAME} || PD_STATE="SETUP"
     fi
+
+    if test -z "${COMPOSE_SERVICE_NAME}" ; then
+        echo "Replication will not be enabled."
+        echo "Variable COMPOSE_SERVICE_NAME is required to enable replication."
+    else
+        _seedHostname="${COMPOSE_SERVICE_NAME}_1"
+        _seedInstanceName="${COMPOSE_SERVICE_NAME}"
+        _seedLdapsPort="${LDAPS_PORT}"
+        _seedReplicationPort="${REPLICATION_PORT}"
+    fi
 fi
 
 # 
 # Unkown ORCHESTRATION_TYPE
 #
 if test -z "${ORCHESTRATION_TYPE}" && test "${PD_STATE}" = "SETUP"; then
+    echo "Replication will not be enabled. Unknown ORCHESTRATION_TYPE"
     PD_STATE="GENESIS"
 fi
 
@@ -272,97 +283,100 @@ echo "##########################################################################
 
 
 #
-# print out a table of all the pods and clusters
+# print out a table of all the pods and clusters if we have the proper variables
+# defined
 #
-_numReplicas=${K8S_REPLICAS}
-_clusterWidth=0
-_podWidth=0
-_portWidth=5
+if test ! -z ${K8S_CLUSTERS}; then
+    _numReplicas=${K8S_REPLICAS}
+    _clusterWidth=0
+    _podWidth=0
+    _portWidth=5
 
-#
-# First, we will calculate a bunch of sizes so we can print in a pretty table
-# and place all the vlues into a row array to be printed in a loop later on
-#
-for _cluster in ${K8S_CLUSTERS}; do
-    # get the max size of cluster name
-    test ${#_cluster} -gt ${_clusterWidth} && _clusterWidth=${#_cluster}
+    #
+    # First, we will calculate a bunch of sizes so we can print in a pretty table
+    # and place all the vlues into a row array to be printed in a loop later on
+    #
+    for _cluster in ${K8S_CLUSTERS}; do
+        # get the max size of cluster name
+        test ${#_cluster} -gt ${_clusterWidth} && _clusterWidth=${#_cluster}
 
-    i=0
-    while (test $i -lt ${_numReplicas}) ; do
-        _pod="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${_cluster}"
+        i=0
+        while (test $i -lt ${_numReplicas}) ; do
+            _pod="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${_cluster}"
 
-        # get the max size of the pod name
-        test ${#_pod} -gt ${_podWidth} && _podWidth=${#_pod}
+            # get the max size of the pod name
+            test ${#_pod} -gt ${_podWidth} && _podWidth=${#_pod}
 
-        _ldapsPort=${LDAPS_PORT}
-        _replicationPort=${REPLICATION_PORT}
-        if test ${K8S_INCREMENT_PORTS} == true; then
-            _ldapsPort=$((_ldapsPort+i))
-            _replicationPort=$((_replicationPort+i))
-        fi
+            _ldapsPort=${LDAPS_PORT}
+            _replicationPort=${REPLICATION_PORT}
+            if test ${K8S_INCREMENT_PORTS} == true; then
+                _ldapsPort=$((_ldapsPort+i))
+                _replicationPort=$((_replicationPort+i))
+            fi
 
-        i=$((i+1))
+            i=$((i+1))
+        done
     done
-done
 
 
-# Get the total width of each row and the width of the cluster header rows
-totalWidth=$((_podWidth+_portWidth+_portWidth+11))
-_clusterWidth=$((totalWidth-14))
+    # Get the total width of each row and the width of the cluster header rows
+    totalWidth=$((_podWidth+_portWidth+_portWidth+11))
+    _clusterWidth=$((totalWidth-14))
 
-# The following are some variables used for printf format statements
-_dashes="--------------------------------------------------------------------------------"
-_seperatorRow=$(printf "# +------+------+-%.${_podWidth}s-+-%.${_portWidth}s-+-%.${_portWidth}s-+\n" \
-      "${_dashes}" "${_dashes}" "${_dashes}")
-_clusterFormat="# | %-4s   %-4s | CLUSTER: %-${_clusterWidth}s |\n"
-_podFormat="# | %-4s | %-4s | %-${_podWidth}s | %-${_portWidth}s | %-${_portWidth}s |\n"
+    # The following are some variables used for printf format statements
+    _dashes="--------------------------------------------------------------------------------"
+    _seperatorRow=$(printf "# +------+------+-%.${_podWidth}s-+-%.${_portWidth}s-+-%.${_portWidth}s-+\n" \
+        "${_dashes}" "${_dashes}" "${_dashes}")
+    _clusterFormat="# | %-4s   %-4s | CLUSTER: %-${_clusterWidth}s |\n"
+    _podFormat="# | %-4s | %-4s | %-${_podWidth}s | %-${_portWidth}s | %-${_portWidth}s |\n"
 
-# print out the top header for the table
-echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
-printf "${_podFormat}" "SEED" "POD" "Instance" "LDAPS" "REPL" >> "${STATE_PROPERTIES}"
+    # print out the top header for the table
+    echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
+    printf "${_podFormat}" "SEED" "POD" "Instance" "LDAPS" "REPL" >> "${STATE_PROPERTIES}"
 
-# Print each row
-for _cluster in ${K8S_CLUSTERS}; do
-    _ordinal=0
+    # Print each row
+    for _cluster in ${K8S_CLUSTERS}; do
+        _ordinal=0
 
-    while (test $_ordinal -lt ${_numReplicas}) ; do
-        _pod="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${_cluster}"
-        
-        # If we are printing a row representing the seed pod
-        _seedIndicator=""
-        test "${_cluster}" == "${K8S_SEED_CLUSTER}" && \
-        test "${_ordinal}" == "0" && \
-        _seedIndicator="***"
+        while (test $_ordinal -lt ${_numReplicas}) ; do
+            _pod="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${_cluster}"
+            
+            # If we are printing a row representing the seed pod
+            _seedIndicator=""
+            test "${_cluster}" == "${K8S_SEED_CLUSTER}" && \
+            test "${_ordinal}" == "0" && \
+            _seedIndicator="***"
 
-        
-        # If we are printing a row representing the current pod, then we will
-        # provide an indicator of that
-        _podIndicator=""
-        test "${_podInstanceName}" == "${_pod}" && _podIndicator="***"
+            
+            # If we are printing a row representing the current pod, then we will
+            # provide an indicator of that
+            _podIndicator=""
+            test "${_podInstanceName}" == "${_pod}" && _podIndicator="***"
 
-        _ldapsPort=${LDAPS_PORT}
-        _replicationPort=${REPLICATION_PORT}
-        if test ${K8S_INCREMENT_PORTS} == true; then
-            _ldapsPort=$((_ldapsPort+_ordinal))
-            _replicationPort=$((_replicationPort+_ordinal))
-        fi
+            _ldapsPort=${LDAPS_PORT}
+            _replicationPort=${REPLICATION_PORT}
+            if test ${K8S_INCREMENT_PORTS} == true; then
+                _ldapsPort=$((_ldapsPort+_ordinal))
+                _replicationPort=$((_replicationPort+_ordinal))
+            fi
 
-        # As we print the rows, if we are a new cluster, then we'll print a new cluster
-        # header row
-        if test "${_prevCluster}" != "${_cluster}"; then
-            echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
-            printf "${_clusterFormat}" "${_seedIndicator}" "" "${_cluster}" >> "${STATE_PROPERTIES}"
-            echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
-        fi
-        _prevCluster=${_cluster}
-        
-        printf "${_podFormat}" "${_seedIndicator}" "${_podIndicator}" "${_pod}" "${_ldapsPort}" "${_replicationPort}" >> "${STATE_PROPERTIES}"
+            # As we print the rows, if we are a new cluster, then we'll print a new cluster
+            # header row
+            if test "${_prevCluster}" != "${_cluster}"; then
+                echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
+                printf "${_clusterFormat}" "${_seedIndicator}" "" "${_cluster}" >> "${STATE_PROPERTIES}"
+                echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
+            fi
+            _prevCluster=${_cluster}
+            
+            printf "${_podFormat}" "${_seedIndicator}" "${_podIndicator}" "${_pod}" "${_ldapsPort}" "${_replicationPort}" >> "${STATE_PROPERTIES}"
 
-        _ordinal=$((_ordinal+1))
+            _ordinal=$((_ordinal+1))
+        done
     done
-done
 
-echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
+    echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
+fi
 
 cat "${STATE_PROPERTIES}"
 
