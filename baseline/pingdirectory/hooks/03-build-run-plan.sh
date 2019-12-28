@@ -65,6 +65,7 @@ _ordinal=$(echo ${_podName##*-})
 
 _podHostname="$(hostname)"
 _podInstanceName="${_podHostname}"
+_podLocation="${LOCATION}"
 _podLdapsPort="${LDAPS_PORT}"
 _podReplicationPort="${REPLICATION_PORT}"
 
@@ -119,8 +120,10 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 
     
     _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
+    _podLocation="${K8S_CLUSTER}"
 
     _seedInstanceName="${K8S_STATEFUL_SET_NAME}-0.${K8S_SEED_CLUSTER}"
+    _seedLocation="${K8S_SEED_CLUSTER}"
     _seedLdapsPort="${LDAPS_PORT}"
     _seedReplicationPort="${REPLICATION_PORT}"
 
@@ -175,7 +178,6 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 #           K8S_INCREMENT_PORTS: ${K8S_INCREMENT_PORTS} (${_incrementPortsMsg})
 #
 #" >> "${_planFile}"
-
 
 fi
 
@@ -269,12 +271,14 @@ echo "##########################################################################
 # POD Server Information
 #                 instance name: ${_podInstanceName}
 #                      hostname: ${_podHostname}
+#                      location: ${_podLocation}
 #                    ldaps port: ${_podLdapsPort}
 #              replication port: ${_podReplicationPort}
 #
 # SEED Server Information
 #                 instance name: ${_seedInstanceName}
 #                      hostname: ${_seedHostname}
+#                      location: ${_seedLocation}
 #                    ldaps port: ${_seedLdapsPort}
 #              replication port: ${_seedReplicationPort}
 ###################################################################################
@@ -286,7 +290,7 @@ echo "##########################################################################
 # print out a table of all the pods and clusters if we have the proper variables
 # defined
 #
-if test ! -z ${K8S_CLUSTERS}; then
+if test ! -z "${K8S_CLUSTERS}"; then
     _numReplicas=${K8S_REPLICAS}
     _clusterWidth=0
     _podWidth=0
@@ -393,6 +397,7 @@ PD_STATE=${PD_STATE}
 ###
 _podInstanceName=${_podInstanceName}
 _podHostname=${_podHostname}
+_podLocation=${_podLocation}
 _podLdapsPort=${_podLdapsPort}
 _podReplicationPort=${_podReplicationPort}
 
@@ -401,11 +406,13 @@ _podReplicationPort=${_podReplicationPort}
 ###
 _seedInstanceName=${_seedInstanceName}
 _seedHostname=${_seedHostname}
+_seedLocation=${_seedLocation}
 _seedLdapsPort=${_seedLdapsPort}
 _seedReplicationPort=${_seedReplicationPort}
 " >> "${STATE_PROPERTIES}"
 
 echo "
 LDAPS_PORT=${LDAPS_PORT}
+LOCATION=${_podLocation}
 REPLICATION_PORT=${REPLICATION_PORT}
 " >> "${STAGING_DIR}/env_vars"
