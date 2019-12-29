@@ -350,8 +350,8 @@ if test ! -z "${K8S_CLUSTERS}" &&
             # get the max size of the pod name
             test ${#_pod} -gt ${_podWidth} && _podWidth=${#_pod}
 
-            _ldapsPort=${LDAPS_PORT}
-            _replicationPort=${REPLICATION_PORT}
+            _ldapsPort=${_seedLdapsPort}
+            _replicationPort=${_seedReplicationPort}
             if test ${K8S_INCREMENT_PORTS} == true; then
                 _ldapsPort=$((_ldapsPort+i))
                 _replicationPort=$((_replicationPort+i))
