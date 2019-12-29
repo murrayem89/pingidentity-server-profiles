@@ -203,6 +203,7 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 #                  K8S_CLUSTERS: ${K8S_CLUSTERS}  (${_clusterMode} cluster)
 #                   K8S_CLUSTER: ${K8S_CLUSTER}  
 #              K8S_SEED_CLUSTER: ${K8S_SEED_CLUSTER}
+#              K8S_NUM_REPLICAS: ${K8S_NUM_REPLICAS}
 #       K8S_POD_HOSTNAME_PREFIX: ${K8S_POD_HOSTNAME_PREFIX}
 #       K8S_POD_HOSTNAME_SUFFIX: ${K8S_POD_HOSTNAME_SUFFIX}
 #      K8S_SEED_HOSTNAME_SUFFIX: ${K8S_SEED_HOSTNAME_SUFFIX}
@@ -328,7 +329,7 @@ echo "##########################################################################
 # defined
 #########################################################################
 if test ! -z "${K8S_CLUSTERS}"; then
-    _numReplicas=${K8S_REPLICAS}
+    _numReplicas=${K8S_NUM_REPLICAS}
     _clusterWidth=0
     _podWidth=0
     _portWidth=5
