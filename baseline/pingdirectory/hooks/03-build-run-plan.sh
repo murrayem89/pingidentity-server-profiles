@@ -137,18 +137,22 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 
     #
     # Single Cluster Details
+    #
+    # Create an instance/hostname using the Kubernetes StatefulSet Name and Service Name
     if test "${_clusterMode}" == "single"; then
-        _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}"
+        _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_STATEFUL_SET_SERVICE_NAME}"
         _podHostname=${_podInstanceName}
         _podLocation="${LOCATION}"
 
-        _seedInstanceName="${K8S_STATEFUL_SET_NAME}-0"
+        _seedInstanceName="${K8S_STATEFUL_SET_NAME}-0.${K8S_STATEFUL_SET_SERVICE_NAME}"
         _seedHostname=${_seedInstanceName}
         _seedLocation="${LOCATION}"
     fi
 
     #
     # Multi Cluster Details
+    #
+    # Create an instance/hostname using the Kubernetes Cluster and Suffixes provided
     if test "${_clusterMode}" == "multi"; then
         _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
         _podHostname=$(eval "echo ${K8S_POD_HOSTNAME_PREFIX}${_ordinal}${K8S_POD_HOSTNAME_SUFFIX}")
