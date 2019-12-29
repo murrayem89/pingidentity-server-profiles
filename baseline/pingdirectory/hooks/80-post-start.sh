@@ -2,11 +2,7 @@
 #
 # Ping Identity DevOps - Docker Build Hooks
 #
-#- This hook runs after the PingDirectory service has been started and is running.  It
-#- will determine if it is part of a directory replication topology by the presence
-#- of a TOPOLOGY_SERVICE_BAME .  If not present, then replication will not be enabled.  
-#- Otherwise,
-#- it will perform the following steps regarding replication.
+#- This hook runs through the followig phases:
 #-
 ${VERBOSE} && set -x
 
@@ -18,12 +14,17 @@ test -f "${STAGING_DIR}/env_vars" && . "${STAGING_DIR}/env_vars"
 # shellcheck source=pingdirectory.lib.sh
 test -f "${HOOKS_DIR}/pingdirectory.lib.sh" && . "${HOOKS_DIR}/pingdirectory.lib.sh"
 
-echo "Running ldapsearch test on this Server (${_podInstanceName})"
+#
+#- * Ensures the PingDirectory service has been started an accepts queries.
+# 
+echo "Waiting until PingDirectory service is running on this Server (${_podInstanceName})"
 echo "        ${_podHostname}:${_podLdapsPort}"
 waitUntilLdapUp "${_podHostname}" "${_podLdapsPort}" ""
 
-echo "
-Updating the Server Instance hostname/ldaps-port:
+#
+#- * Updates the Server Instance hostname/ldaps-port
+#
+echo "Updating the Server Instance hostname/ldaps-port:
          instance: ${_podInstanceName}
          hostname: ${_podHostname}
        ldaps-port: ${_podLdapsPort}"
@@ -37,13 +38,16 @@ _updateServerInstanceResult=$?
 echo "Updating the Server Instance ${_podInstanceName} result=${_updateServerInstanceResult}"
 
 #
-# If we are in GENESIS State, then, no replication will be setup
+#- * Check to see if PD_STATE is GENISIS.  If so, no replication will be performed
 #
 if test "${PD_STATE}" == "GENESIS" ; then
     echo "PD_STATE is GENESIS ==> Replication on this server won't be setup until more instances are added"
     exit 0
 fi
 
+#
+#- * If the server being setup is the Seed Instance, then no replication will be performed
+#
 if test "${_podInstanceName}" == "${_seedInstanceName}"; then
     echo ""
     echo "We are the SEED Server: ${_seedInstanceName} --> No need to enable replication"
@@ -51,15 +55,15 @@ if test "${_podInstanceName}" == "${_seedInstanceName}"; then
     exit 0
 fi
 
-echo "Running dsreplication enable"
-
+#
+#- * Ensure the Seed Server is accepting queries
+#
 echo "Running ldapsearch test on SEED Server (${_seedInstanceName})"
 echo "        ${_seedHostname}:${_seedLdapsPort}"
 waitUntilLdapUp "${_seedHostname}" "${_seedLdapsPort}" ""
 
 #
-# Check the topology prior to enabling replication to see if the Toplogy Master is different
-# than the Seed server
+#- * Check the topology prior to enabling replication
 #
 _priorTopoFile="/tmp/priorTopology.json"
 rm -rf "${_priorTopoFile}"
@@ -69,12 +73,18 @@ manage-topology export \
     --exportFilePath "${_priorTopoFile}"
 _priorNumInstances=$(cat ${_priorTopoFile} | jq ".serverInstances | length")
 
+#
+#- * Get the current Toplogy Master
+#
 _masterTopologyInstance=$(ldapsearch --hostname "${_seedHostname}" --port "${_seedLdapsPort}" --terse --outputFormat json -b "cn=Mirrored subtree manager for base DN cn_Topology_cn_config,cn=monitor" -s base objectclass=* master-instance-name | jq -r .attributes[].values[])
 _masterTopologyHostname="${_seedHostname}"
 _masterTopologyLdapsPort="${_seedLdapsPort}"
 _masterTopologyReplicationPort="${_seedReplicationPort}"
 
 
+#
+#- * Determine the Master Toplogy server to use to enable with
+#
 if test "${_priorNumInstances}" -eq 1; then
     echo "Only 1 instance (${_masterTopologyInstance}) found in current topology.  Adding 1st replica"
 else
@@ -93,6 +103,9 @@ else
 fi
 
 
+#
+#- * Enabling Replication
+#
 printf "
 #############################################
 # Enabling Replication
@@ -131,6 +144,9 @@ if test ${_replEnableResult} -ne 0; then
     exit ${_replEnableResult}
 fi
 
+#
+#- * Get the new current topology
+#
 echo "Getting Topology from SEED Server"
 rm -rf "${TOPOLOGY_FILE}"
 manage-topology export \
@@ -140,6 +156,9 @@ manage-topology export \
 
 cat "${TOPOLOGY_FILE}"
 
+#
+#- * Initialize replication
+#
 echo "Initializing replication on POD Server"
 dsreplication initialize \
       --retryTimeoutSeconds ${RETRY_TIMEOUT_SECONDS} \
