@@ -74,6 +74,15 @@ manage-topology export \
 _priorNumInstances=$(cat ${_priorTopoFile} | jq ".serverInstances | length")
 
 #
+#- * If this server is already in prior topology, then replication is already enable
+#
+if test ! -z $(cat ${_priorTopoFile} | jq -r ".serverInstances[] | select(.instanceName==\"${_podInstanceName}\") | .instanceName"); then
+    echo "This instance (${_podInstanceName}) is already found in topology --> No need to enable replication"
+    dsreplication status --displayServerTable --showAll
+    exit 0
+fi
+
+#
 #- * Get the current Toplogy Master
 #
 _masterTopologyInstance=$(ldapsearch --hostname "${_seedHostname}" --port "${_seedLdapsPort}" --terse --outputFormat json -b "cn=Mirrored subtree manager for base DN cn_Topology_cn_config,cn=monitor" -s base objectclass=* master-instance-name | jq -r .attributes[].values[])
@@ -178,6 +187,7 @@ dsreplication initialize \
 _replInitResult=$?
 echo "Replication initialize result=${_replInitResult}"
 
-# test ${_replInitResult} -eq 0 && touch "${REPL_SETUP_MARKER_FILE}"
+test ${_replInitResult} -eq 0 && dsreplication status --displayServerTable --showAll
+    
 exit ${_replInitResult}
 
