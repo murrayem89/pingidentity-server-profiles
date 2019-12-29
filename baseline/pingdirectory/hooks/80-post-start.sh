@@ -46,16 +46,6 @@ if test "${PD_STATE}" == "GENESIS" ; then
 fi
 
 #
-#- * If the server being setup is the Seed Instance, then no replication will be performed
-#
-if test "${_podInstanceName}" == "${_seedInstanceName}"; then
-    echo ""
-    echo "We are the SEED Server: ${_seedInstanceName} --> No need to enable replication"
-    echo "TODO: We need to check for other servers"
-    exit 0
-fi
-
-#
 #- * Ensure the Seed Server is accepting queries
 #
 echo "Running ldapsearch test on SEED Server (${_seedInstanceName})"
@@ -79,6 +69,16 @@ _priorNumInstances=$(cat ${_priorTopoFile} | jq ".serverInstances | length")
 if test ! -z $(cat ${_priorTopoFile} | jq -r ".serverInstances[] | select(.instanceName==\"${_podInstanceName}\") | .instanceName"); then
     echo "This instance (${_podInstanceName}) is already found in topology --> No need to enable replication"
     dsreplication status --displayServerTable --showAll
+    exit 0
+fi
+
+#
+#- * If the server being setup is the Seed Instance, then no replication will be performed
+#
+if test "${_podInstanceName}" == "${_seedInstanceName}"; then
+    echo ""
+    echo "We are the SEED Server: ${_seedInstanceName} --> No need to enable replication"
+    echo "TODO: We need to check for other servers"
     exit 0
 fi
 
