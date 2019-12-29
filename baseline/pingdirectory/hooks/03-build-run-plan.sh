@@ -328,7 +328,8 @@ echo "##########################################################################
 # print out a table of all the pods and clusters if we have the proper variables
 # defined
 #########################################################################
-if test ! -z "${K8S_CLUSTERS}"; then
+if test ! -z "${K8S_CLUSTERS}" &&
+   test ! -z "${K8S_NUM_REPLICAS}"; then
     _numReplicas=${K8S_NUM_REPLICAS}
     _clusterWidth=0
     _podWidth=0
