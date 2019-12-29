@@ -85,6 +85,8 @@ if test -f "${STAGING_DIR}/env_vars"  ; then
     _manageProfileOptions="--profileVariablesFile ${STAGING_DIR}/env_vars "
 fi
 
+# GDO-57 - If there isn't a setup-arguments.txt file, then we will create one based on the
+#          variables provided
 _setupArguments="${PD_PROFILE}/setup-arguments.txt"
 if test ! -f "${_setupArguments}"; then
     echo "Generating ${_setupArguments}"

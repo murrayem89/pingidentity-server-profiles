@@ -76,23 +76,37 @@ echo "
 #                    serverUUID: ${serverUUID}
 #" >> "${_planFile}"
 
-# 
-# KUBERNETES
-#
+#########################################################################
+# KUBERNETES ORCHESTRATION_TYPE
+#########################################################################
 if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 
     if test -z "${K8S_STATEFUL_SET_NAME}"; then
         container_failure "03" "KUBERNETES Orchestation ==> K8S_STATEFUL_SET_NAME required"
     fi
+
+    if test -z "${K8S_STATEFUL_SET_SERVICE_NAME}"; then
+        container_failure "03" "KUBERNETES Orchestation ==> K8S_STATEFUL_SET_SERVICE_NAME required"
+    fi
+
     #
     # Check to see if we have the variables for single or multi cluster replication
     #
     # If we have both K8S_CLUSTER and K8S_SEED_CLUSTER defined then we are in a 
     # multi cluster mode.
     #
-    if test -z "${K8S_CLUSTER}" ||
+    if test -z "${K8S_CLUSTERS}" ||
+       test -z "${K8S_CLUSTER}" ||
        test -z "${K8S_SEED_CLUSTER}"; then
         _clusterMode="single"
+
+        if test ! -z "${K8S_CLUSTERS}" ||
+           test ! -z "${K8S_CLUSTER}" ||
+           test ! -z "${K8S_SEED_CLUSTER}"; then
+            echo "One of K8S_CLUSTERS (${K8S_CLUSTERS}), K8S_CLUSTER (${K8S_CLUSTER}), K8S_SEED_CLUSTER (${K8S_SEED_CLUSTER}) aren't set."
+            echo "All or none of these must be set."
+            container_failure "03" "KUBERNETES Orchestation ==> All or none of K8S_CLUSTERS K8S_CLUSTER K8S_SEED_CLUSTER required"
+        fi
     else
         _clusterMode="multi"
 
@@ -118,20 +132,32 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
         fi
     fi
 
-    
-    _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
-    _podLocation="${K8S_CLUSTER}"
-
-    _seedInstanceName="${K8S_STATEFUL_SET_NAME}-0.${K8S_SEED_CLUSTER}"
-    _seedLocation="${K8S_SEED_CLUSTER}"
     _seedLdapsPort="${LDAPS_PORT}"
     _seedReplicationPort="${REPLICATION_PORT}"
 
     #
+    # Single Cluster Details
+    if test "${_clusterMode}" == "single"; then
+        _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}"
+        _podHostname=${_podInstanceName}
+        _podLocation="${LOCATION}"
+
+        _seedInstanceName="${K8S_STATEFUL_SET_NAME}-0"
+        _seedHostname=${_seedInstanceName}
+        _seedLocation="${LOCATION}"
+    fi
+
+    #
     # Multi Cluster Details
     if test "${_clusterMode}" == "multi"; then
+        _podInstanceName="${K8S_STATEFUL_SET_NAME}-${_ordinal}.${K8S_CLUSTER}"
         _podHostname=$(eval "echo ${K8S_POD_HOSTNAME_PREFIX}${_ordinal}${K8S_POD_HOSTNAME_SUFFIX}")
+        _podLocation="${K8S_CLUSTER}"
+
+        _seedInstanceName="${K8S_STATEFUL_SET_NAME}-0.${K8S_SEED_CLUSTER}"
         _seedHostname=$(eval "echo ${K8S_POD_HOSTNAME_PREFIX}0${K8S_POD_HOSTNAME_SUFFIX}")
+        _seedLocation="${K8S_SEED_CLUSTER}"
+
 
         if test "${K8S_INCREMENT_PORTS}" == "true"; then
             _podLdapsPort=$(( LDAPS_PORT + _ordinal ))
@@ -170,7 +196,8 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 #         K8S_STATEFUL_SET_NAME: ${K8S_STATEFUL_SET_NAME}
 # K8S_STATEFUL_SET_SERVICE_NAME: ${K8S_STATEFUL_SET_SERVICE_NAME}
 #
-#                   K8S_CLUSTER: ${K8S_CLUSTER}  (${_clusterMode} cluster)
+#                  K8S_CLUSTERS: ${K8S_CLUSTERS}  (${_clusterMode} cluster)
+#                   K8S_CLUSTER: ${K8S_CLUSTER}  
 #              K8S_SEED_CLUSTER: ${K8S_SEED_CLUSTER}
 #       K8S_POD_HOSTNAME_PREFIX: ${K8S_POD_HOSTNAME_PREFIX}
 #       K8S_POD_HOSTNAME_SUFFIX: ${K8S_POD_HOSTNAME_SUFFIX}
@@ -181,9 +208,9 @@ if test "${ORCHESTRATION_TYPE}" = "KUBERNETES" ; then
 
 fi
 
-# 
+#########################################################################
 # COMPOSE ORCHESTRATION_TYPE
-#
+#########################################################################
 if test "${ORCHESTRATION_TYPE}" = "COMPOSE" ; then
     # Assume GENESIS state for now, if we aren't kubernetes when setting up
     if test "${RUN_PLAN}" = "START" ; then
@@ -197,14 +224,15 @@ if test "${ORCHESTRATION_TYPE}" = "COMPOSE" ; then
     else
         _seedHostname="${COMPOSE_SERVICE_NAME}_1"
         _seedInstanceName="${COMPOSE_SERVICE_NAME}"
+        _seedLocation="${LOCATION}"
         _seedLdapsPort="${LDAPS_PORT}"
         _seedReplicationPort="${REPLICATION_PORT}"
     fi
 fi
 
-# 
+#########################################################################
 # Unkown ORCHESTRATION_TYPE
-#
+#########################################################################
 if test -z "${ORCHESTRATION_TYPE}" && test "${PD_STATE}" = "SETUP"; then
     echo "Replication will not be enabled. Unknown ORCHESTRATION_TYPE"
     PD_STATE="GENESIS"
@@ -227,17 +255,22 @@ case "${PD_STATE}" in
 #
 #                                  GENESIS STATE FOUND
 #
+# If it is suspected that we shoudn't be in the GENESIS state, take actions to
+# remediate.
+#
 # Based on the following information, we have determined that we are the SEED server
 # in the GENESIS state (First server to come up in this stateful set) due to the
 # folloing conditions:
 #
-#   1. We couldn't find a valid server.uuid file
+#   1. We couldn't find a valid server.uuid file"
+
+        test "${ORCHESTRATION_TYPE}" == "KUBERNETES" && echo "#
 #   2. KUBERNETES - Our host name ($(hostname))is the 1st one in the stateful set (${K8S_STATEFUL_SET_SERVICE_NAME}-0)
-#   3. KUBERNETES - There are no other servers currently running in the stateful set (${K8S_STATEFUL_SET_SERVICE_NAME})
-#
-# If it is suspected that we shoudn't be in the GENESIS state, take actions to
-# remediate.
-#
+#   3. KUBERNETES - There are no other servers currently running in the stateful set (${K8S_STATEFUL_SET_SERVICE_NAME})"
+
+        test "${ORCHESTRATION_TYPE}" == "COMPOSE" && echo "#
+#   2. COMPOSE - There is no SEED Server (${COMPOSE_SERVICE_NAME}_1) found"
+echo "#
 ##################################################################################
 "
         ;;
@@ -286,10 +319,10 @@ echo "##########################################################################
 
 
 
-#
+#########################################################################
 # print out a table of all the pods and clusters if we have the proper variables
 # defined
-#
+#########################################################################
 if test ! -z "${K8S_CLUSTERS}"; then
     _numReplicas=${K8S_REPLICAS}
     _clusterWidth=0
@@ -382,6 +415,7 @@ if test ! -z "${K8S_CLUSTERS}"; then
     echo "${_seperatorRow}" >> "${STATE_PROPERTIES}"
 fi
 
+# Print out all the STATE_POPERTIES
 cat "${STATE_PROPERTIES}"
 
 echo "
