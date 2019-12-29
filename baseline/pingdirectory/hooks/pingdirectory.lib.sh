@@ -18,7 +18,7 @@ getIP ()
 #              $3 - baseDN
 waitUntilLdapUp ()
 {
-    _iCnt=0
+    _iCnt=1
 
     while true; do
         # shellcheck disable=SC2086
